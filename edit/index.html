@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 検索エンジンに載せない -->
+<meta name="robots" content="noindex, nofollow">
+<!-- 鍵入りURLを他サイトへ送らない -->
+<meta name="referrer" content="no-referrer">
+<title>Memo</title>
+<style>
+  :root {
+    --bg: #eef2f5; --panel: #fff; --ink: #1c2833; --sub: #5a6b7a;
+    --accent: #1f5f8b; --ok: #2e7d4f; --err: #b3261e; --line: #d3dce4; --soft: #e6edf3;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+    font-size: 16px; line-height: 1.5; -webkit-text-size-adjust: 100%;
+    padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .hidden { display: none !important; }
+  header { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; }
+  header h1 { font-size: 1.25rem; margin: 0; flex: 1; }
+  .state { font-size: .8rem; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--sub); white-space: nowrap; }
+  .state.dirty { background: #fdecea; color: var(--err); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 1rem; margin: 0 0 10px; }
+  label { display: block; font-size: .85rem; color: var(--sub); margin: 10px 0 3px; }
+  input[type=text], input[type=password], input[type=url], input[type=search], textarea {
+    width: 100%; font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; color: var(--ink); font-family: inherit;
+  }
+  textarea { resize: vertical; }
+  .mono { font-family: ui-monospace, Consolas, Menlo, monospace; }
+  button {
+    font-size: 15px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); cursor: pointer; font-family: inherit;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--err); }
+  button.wide { width: 100%; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .btns > .grow { flex: 1; }
+  .msg { min-height: 1.4em; margin-top: 8px; font-size: .9rem; font-weight: bold; }
+  .msg.err { color: var(--err); } .msg.ok { color: var(--ok); }
+  .note { font-size: .82rem; color: var(--sub); margin: 8px 0 0; }
+  .warn { font-size: .82rem; color: var(--err); margin: 8px 0 0; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .inline { display: flex; gap: 6px; }
+  .inline > input { flex: 1; min-width: 0; }
+  .inline > button { white-space: nowrap; }
+
+  /* 折りたたみ */
+  details.fold { border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; margin-top: 10px; background: #fff; }
+  details.fold > summary { list-style: none; cursor: pointer; padding: 10px 0; color: var(--sub); font-size: .9rem; user-select: none; }
+  details.fold > summary::-webkit-details-marker { display: none; }
+  details.fold > summary::before { content: "▸ "; }
+  details.fold[open] > summary::before { content: "▾ "; }
+  details.fold[open] { padding-bottom: 12px; }
+  .tag { display: inline-block; font-size: .72rem; padding: 1px 8px; border-radius: 999px; background: var(--soft); color: var(--sub); margin-left: 4px; }
+
+  /* 生成の設定 */
+  .gen { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: .9rem; }
+  .gen label { display: inline-flex; align-items: center; gap: 4px; margin: 0; color: inherit; font-size: .9rem; }
+  .gen input[type=range] { width: 140px; }
+
+  /* 一覧 */
+  .listHead { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .listHead input { flex: 1; min-width: 0; }
+  .entry { border-top: 1px solid var(--line); padding: 10px 0; display: flex; gap: 10px; align-items: center; }
+  .entry:first-child { border-top: none; }
+  .entry .info { flex: 1; min-width: 0; }
+  .entry .site { font-weight: bold; word-break: break-all; }
+  .entry .sub { font-size: .85rem; color: var(--sub); word-break: break-all; }
+  .entry .pw { font-family: ui-monospace, Consolas, Menlo, monospace; }
+  .entry .acts { display: flex; gap: 6px; flex: none; }
+  .entry .acts button { padding: 8px 10px; font-size: 14px; }
+  .entry.editing { background: #f3f8fc; }
+  .empty { text-align: center; color: var(--sub); padding: 12px 0; }
+
+  #friendUrl { background: #f7f9fa; padding: 8px; border: 1px solid var(--line); border-radius: 8px; word-break: break-all; font-size: .85rem; }
+  footer { text-align: center; color: var(--sub); font-size: .8rem; margin: 20px 0 8px; }
+
+  @media (max-width: 480px) {
+    .row2 { grid-template-columns: 1fr; }
+    .entry { flex-wrap: wrap; }
+    .entry .acts { width: 100%; justify-content: flex-end; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Memo</h1>
+    <span class="state hidden" id="state"></span>
+  </header>
+
+  <!-- ===== 開始画面 ===== -->
+  <section id="startArea">
+    <div class="card">
+      <h2>開く</h2>
+      <div id="keyBox">
+        <label>友達用URL（#以降の鍵を含む全体）</label>
+        <input type="text" id="loadUrl" class="mono" autocomplete="off" spellcheck="false">
+      </div>
+      <p class="note hidden" id="keyKnown">鍵はこのページのURLから読み込みました。</p>
+      <label>PIN</label>
+      <input type="password" id="loadPin" inputmode="numeric" maxlength="6" autocomplete="off">
+      <div class="btns"><button class="primary wide" id="loadBtn">開く</button></div>
+      <div class="msg" id="loadMsg"></div>
+
+      <details class="fold">
+        <summary>手元の data.json から開く</summary>
+        <input type="file" id="loadFile" accept=".json,application/json">
+        <p class="note">ファイルを選んだ状態で「開く」を押すと、公開中のものではなくこのファイルを読みます。</p>
+      </details>
+      <details class="fold">
+        <summary>新しく作る（鍵を作り直す）</summary>
+        <p class="warn">新しい鍵で保存すると、今の友達用URLでは開けなくなります。友達のホーム画面も登録し直しになります。</p>
+        <div class="btns"><button class="danger" id="newBtn">新しい鍵を作って始める</button></div>
+        <div class="msg" id="newMsg"></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===== 編集画面 ===== -->
+  <section id="editArea" class="hidden">
+    <div class="card" id="formCard">
+      <h2 id="formTitle">追加</h2>
+      <label>サイト名</label>
+      <input type="text" id="fSite" autocomplete="off">
+      <label>ID</label>
+      <input type="text" id="fLogin" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <label>PW</label>
+      <div class="inline">
+        <input type="text" id="fPass" class="mono" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button type="button" id="genBtn" title="ランダムな文字列を入れる">🎲 生成</button>
+      </div>
+      <details class="fold" id="genFold">
+        <summary>生成の設定</summary>
+        <div class="gen">
+          <label>長さ <input type="range" id="gLen" min="8" max="32" value="16"> <b id="gLenV">16</b></label>
+          <label><input type="checkbox" id="gUpper" checked>A-Z</label>
+          <label><input type="checkbox" id="gLower" checked>a-z</label>
+          <label><input type="checkbox" id="gDigit" checked>0-9</label>
+          <label><input type="checkbox" id="gSym" checked>記号</label>
+          <label><input type="checkbox" id="gNoAmb" checked>紛らわしい文字を除く</label>
+        </div>
+      </details>
+      <details class="fold" id="noteFold">
+        <summary>備考<span class="tag hidden" id="noteTag">入力あり</span></summary>
+        <textarea id="fNote" rows="3" placeholder="例：秘密の質問の答え、登録した電話番号 など"></textarea>
+      </details>
+      <div class="btns">
+        <button class="primary grow" id="saveEntryBtn">追加</button>
+        <button id="cancelEditBtn" class="hidden">やめる</button>
+      </div>
+      <div class="msg" id="formMsg"></div>
+    </div>
+
+    <div class="card">
+      <div class="listHead">
+        <h2 style="margin:0">登録一覧 <span class="tag" id="count">0件</span></h2>
+      </div>
+      <input type="search" id="search" placeholder="さがす" autocomplete="off">
+      <div id="list" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <h2>保存</h2>
+      <div class="row2">
+        <div><label>PIN（4〜6桁の数字）</label><input type="password" id="sPin" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+        <div><label>PIN（確認）</label><input type="password" id="sPin2" inputmode="numeric" maxlength="6" autocomplete="off"></div>
+      </div>
+      <div class="btns">
+        <button class="primary grow" id="pushBtn">GitHubに保存</button>
+        <button id="exportBtn">ダウンロード</button>
+      </div>
+      <div class="msg" id="exportMsg"></div>
+      <p class="note">保存すると友達のページに反映されます（GitHub Pagesの反映に1〜数分かかります）。</p>
+    </div>
+
+    <details class="fold card" style="padding:0 14px">
+      <summary>友達用URL</summary>
+      <div id="friendUrl" class="mono"></div>
+      <div class="btns"><button id="copyUrlBtn">URLをコピー</button></div>
+      <p class="warn">このURLは鍵そのもの。LINE等で送ると履歴に残るので、できれば友達のiPhoneで直接開いてホーム画面に追加する。</p>
+    </details>
+  </section>
+
+  <!-- ===== GitHub連携（どの画面でも表示） ===== -->
+  <details class="fold card" id="ghFold" style="padding:0 14px">
+    <summary>GitHub連携の設定 <span class="tag" id="ghTag">未設定</span></summary>
+    <div class="row2">
+      <div><label>ユーザー名</label><input type="text" id="ghOwner" autocapitalize="off" spellcheck="false"></div>
+      <div><label>リポジトリ名</label><input type="text" id="ghRepo" autocapitalize="off" spellcheck="false"></div>
+      <div><label>ブランチ（空なら自動）</label><input type="text" id="ghBranch" autocapitalize="off" spellcheck="false"></div>
+      <div><label>ファイル</label><input type="text" id="ghPath" value="data.json" autocapitalize="off" spellcheck="false"></div>
+    </div>
+    <label>アクセストークン（Fine-grained token）</label>
+    <input type="password" id="ghToken" class="mono" autocomplete="off" spellcheck="false" placeholder="github_pat_...">
+    <label style="display:flex;gap:6px;align-items:center;color:inherit"><input type="checkbox" id="ghRemember" checked>この端末に記憶する</label>
+    <div class="btns"><button id="ghTestBtn">接続を確認</button><button id="ghForgetBtn" class="danger">記憶を消す</button></div>
+    <div class="msg" id="ghMsg"></div>
+    <p class="note">
+      トークンの作り方：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token。
+      Repository access は「Only select repositories」でこのリポジトリだけ、Permissions は「Contents: Read and write」だけにする。
+    </p>
+    <p class="warn">トークンは自分の端末だけに入れる。友達の端末や共用PCには入れない。</p>
+  </details>
+
+  <footer>v0.3.0</footer>
+</div>
+
+<script>
+'use strict';
+
+const VERSION = '0.3.0';
+const ITER = 600000;     // PBKDF2の繰り返し回数
+const FORMAT = 'memo';
+const STORE = 'memo-gh';   // GitHub設定の保存キー
+
+// ---------- 状態 ----------
+let urlKey = null;     // 32バイトの鍵
+let entries = [];      // {site, login, password, note}
+let editIndex = -1;    // 編集中の行（-1なら新規追加）
+let dirty = false;     // 未保存の変更があるか
+
+// ---------- 変換 ----------
+function b64urlEncode(bytes) {
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64urlDecode(str) {
+  const b64 = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+// 文字列から32バイトの鍵を取り出す（URL全体でも#以降だけでも可）。だめならnull
+function parseKey(str) {
+  try {
+    const k = b64urlDecode(str.trim().split('#').pop());
+    return k.length === 32 ? k : null;
+  } catch (e) { return null; }
+}
+
+// ---------- 暗号処理（閲覧用と同じ方式） ----------
+async function deriveKey(key, pin, salt, iter, usage) {
+  const pinBytes = new TextEncoder().encode(pin);
+  const material = new Uint8Array(key.length + pinBytes.length);
+  material.set(key); material.set(pinBytes, key.length);
+  const base = await crypto.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, [usage]
+  );
+}
+// 保存ごとにsalt/ivを作り直す
+async function encryptData(pin) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(urlKey, pin, salt, ITER, 'encrypt');
+  const plain = new TextEncoder().encode(JSON.stringify({ updated: new Date().toISOString(), entries }));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain));
+  return { format: FORMAT, v: 1, iter: ITER, salt: b64urlEncode(salt), iv: b64urlEncode(iv), ct: b64urlEncode(ct) };
+}
+async function decryptData(file, pin) {
+  const key = await deriveKey(urlKey, pin, b64urlDecode(file.salt), file.iter, 'decrypt');
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64urlDecode(file.iv) }, key, b64urlDecode(file.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+// ---------- 共通 ----------
+const $ = id => document.getElementById(id);
+function msg(id, text, type) { const m = $(id); m.textContent = text; m.className = 'msg ' + (type || ''); }
+function validPin(p) { return /^[0-9]{4,6}$/.test(p); }
+// 公開ページのURL（このページの1つ上のフォルダ）
+function siteBase() { return new URL('../', location.href.split('#')[0]).href; }
+function friendUrl() { return siteBase() + '#' + b64urlEncode(urlKey); }
+
+function setDirty(v) {
+  dirty = v;
+  const s = $('state');
+  s.classList.toggle('hidden', !urlKey);
+  s.textContent = v ? '未保存の変更あり' : '保存済み';
+  s.classList.toggle('dirty', v);
+}
+
+// 旧形式（email）を新形式（login）にそろえる
+function normEntry(e) {
+  return { site: e.site || '', login: e.login != null ? e.login : (e.email || ''), password: e.password || '', note: e.note || '' };
+}
+
+function enterEdit() {
+  $('startArea').classList.add('hidden');
+  $('editArea').classList.remove('hidden');
+  $('friendUrl').textContent = friendUrl();
+  // このページのURLにも鍵を付けておく（ブックマークすれば次からPINだけで開ける）
+  history.replaceState(null, '', '#' + b64urlEncode(urlKey));
+  renderList();
+  $('fSite').focus();
+}
+
+// ---------- GitHub連携 ----------
+function ghConf() {
+  return {
+    owner: $('ghOwner').value.trim(), repo: $('ghRepo').value.trim(),
+    branch: $('ghBranch').value.trim(), path: $('ghPath').value.trim() || 'data.json',
+    token: $('ghToken').value.trim(),
+  };
+}
+function ghReady() { const c = ghConf(); return !!(c.owner && c.repo && c.token); }
+function updateGhTag() { $('ghTag').textContent = ghReady() ? '設定済み' : '未設定'; }
+
+function saveGhConf() {
+  updateGhTag();
+  try {
+    if ($('ghRemember').checked) localStorage.setItem(STORE, JSON.stringify(ghConf()));
+    else localStorage.removeItem(STORE);
+  } catch (e) { /* 保存できない環境では毎回入力 */ }
+}
+function loadGhConf() {
+  let c = null;
+  try {
+    c = JSON.parse(localStorage.getItem(STORE) || 'null');
+  } catch (e) { c = null; }
+  // 未設定なら github.io のURLから推測
+  if (!c) {
+    const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+    c = { owner: m ? m[1] : '', repo: m ? (location.pathname.split('/')[1] || '') : '', branch: '', path: 'data.json', token: '' };
+  }
+  $('ghOwner').value = c.owner || ''; $('ghRepo').value = c.repo || '';
+  $('ghBranch').value = c.branch || ''; $('ghPath').value = c.path || 'data.json';
+  $('ghToken').value = c.token || '';
+  updateGhTag();
+}
+
+async function gh(path, opts) {
+  const c = ghConf();
+  opts = opts || {};
+  const res = await fetch('https://api.github.com' + path, Object.assign({}, opts, {
+    cache: 'no-store',
+    headers: Object.assign({
+      'Authorization': 'Bearer ' + c.token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    }, opts.headers || {}),
+  }));
+  return res;
+}
+function repoPath() { const c = ghConf(); return '/repos/' + encodeURIComponent(c.owner) + '/' + encodeURIComponent(c.repo); }
+function filePath() { return repoPath() + '/contents/' + ghConf().path.split('/').map(encodeURIComponent).join('/'); }
+
+// ブランチが空なら、Pagesの公開元 → リポジトリの既定ブランチ の順で決める
+async function resolveBranch() {
+  if (ghConf().branch) return ghConf().branch;
+  let r = await gh(repoPath() + '/pages');
+  if (r.ok) { const j = await r.json(); if (j.source && j.source.branch) return setBranch(j.source.branch); }
+  r = await gh(repoPath());
+  if (!r.ok) throw ghError(r);
+  return setBranch((await r.json()).default_branch);
+}
+function setBranch(b) { $('ghBranch').value = b; saveGhConf(); return b; }
+
+function ghError(r) {
+  const why = r.status === 401 ? 'トークンが正しくないか期限切れです'
+    : r.status === 403 ? 'トークンに書き込み権限（Contents: Read and write）がありません'
+    : r.status === 404 ? 'リポジトリかファイルが見つかりません（ユーザー名・リポジトリ名・トークンの対象を確認）'
+    : r.status === 409 ? '保存がぶつかりました。もう一度押してください'
+    : 'GitHubエラー（' + r.status + '）';
+  return new Error(why);
+}
+
+// 最新の data.json と、その版ID(sha)を取得。ファイルがなければ null
+async function ghGetFile() {
+  const branch = await resolveBranch();
+  const r = await gh(filePath() + '?ref=' + encodeURIComponent(branch));
+  if (r.status === 404) return null;
+  if (!r.ok) throw ghError(r);
+  const j = await r.json();
+  // 1MB以下ならcontentに入っている（base64・改行入り）
+  const text = new TextDecoder().decode(b64urlDecode(j.content.replace(/\s/g, '').replace(/=+$/, '')));
+  return { sha: j.sha, text };
+}
+
+async function ghPutFile(text, sha) {
+  const branch = await resolveBranch();
+  const body = { message: 'update', content: btoa(text), branch };
+  if (sha) body.sha = sha;
+  const r = await gh(filePath(), { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  if (!r.ok) throw ghError(r);
+}
+
+// ---------- 開く ----------
+// 読み込み元：選んだファイル → GitHub API（最新） → 公開ページの data.json
+async function fetchDataText() {
+  const f = $('loadFile').files[0];
+  if (f) return f.text();
+  if (ghReady()) {
+    const got = await ghGetFile();
+    if (!got) throw new Error('GitHubに ' + ghConf().path + ' がありません');
+    return got.text;
+  }
+  const res = await fetch('../data.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('data.json を読み込めませんでした');
+  return res.text();
+}
+
+$('loadBtn').onclick = async () => {
+  const p = $('loadPin').value;
+  const k = urlKey || parseKey($('loadUrl').value);
+  if (!k) { msg('loadMsg', '友達用URL（#以降の鍵を含む全体）を入れてください', 'err'); return; }
+  if (!validPin(p)) { msg('loadMsg', 'PINは4〜6桁の数字です', 'err'); return; }
+  $('loadBtn').disabled = true;
+  msg('loadMsg', '読み込んでいます…');
+  try {
+    let file;
+    try {
+      file = JSON.parse(await fetchDataText());
+    } catch (e) { msg('loadMsg', e.message || '読み込めませんでした', 'err'); return; }
+    if (file.format !== FORMAT) { msg('loadMsg', 'data.json の形式が違います', 'err'); return; }
+    const prevKey = urlKey;
+    urlKey = k;
+    try {
+      const data = await decryptData(file, p);
+      entries = (data.entries || []).map(normEntry);
+    } catch (e) {
+      urlKey = prevKey;
+      msg('loadMsg', '鍵かPINが違います', 'err');
+      return;
+    }
+    $('sPin').value = p; $('sPin2').value = p;  // 同じPINで保存しやすくする
+    setDirty(false);
+    enterEdit();
+  } finally {
+    $('loadBtn').disabled = false;
+  }
+};
+$('loadPin').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('loadBtn').click(); });
+
+$('newBtn').onclick = () => {
+  if (!confirm('新しい鍵で始めます。保存すると今の友達用URLは使えなくなります。よろしいですか？')) return;
+  urlKey = crypto.getRandomValues(new Uint8Array(32));
+  entries = [];
+  setDirty(true);
+  enterEdit();
+};
+
+// ---------- 一覧 ----------
+function renderList() {
+  entries.sort((a, b) => a.site.localeCompare(b.site, 'ja'));
+  const q = $('search').value.trim().toLowerCase();
+  const box = $('list'); box.textContent = '';
+  $('count').textContent = entries.length + '件';
+  let shown = 0;
+  entries.forEach((e, i) => {
+    if (q && !(e.site + '\n' + e.login).toLowerCase().includes(q)) return;
+    shown++;
+    const row = document.createElement('div'); row.className = 'entry' + (i === editIndex ? ' editing' : '');
+    const info = document.createElement('div'); info.className = 'info';
+    const site = document.createElement('div'); site.className = 'site'; site.textContent = e.site;
+    if (e.note) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = '備考'; t.title = e.note; site.appendChild(t); }
+    const login = document.createElement('div'); login.className = 'sub'; login.textContent = e.login || '（ID なし）';
+    const pw = document.createElement('div'); pw.className = 'sub pw'; pw.textContent = e.password || '（PW なし）';
+    info.append(site, login, pw);
+    const acts = document.createElement('div'); acts.className = 'acts';
+    const eb = document.createElement('button'); eb.textContent = '編集'; eb.onclick = () => startEdit(i);
+    const db = document.createElement('button'); db.textContent = '削除'; db.className = 'danger';
+    db.onclick = () => {
+      if (!confirm('「' + e.site + '」を削除しますか？')) return;
+      entries.splice(i, 1); setDirty(true); resetForm(); renderList();
+    };
+    acts.append(eb, db);
+    row.append(info, acts);
+    box.appendChild(row);
+  });
+  if (shown === 0) {
+    const p = document.createElement('p'); p.className = 'empty';
+    p.textContent = q ? '見つかりません' : 'まだ登録がありません。上のフォームから追加してください';
+    box.appendChild(p);
+  }
+}
+$('search').addEventListener('input', renderList);
+
+// ---------- 追加・編集フォーム ----------
+function startEdit(i) {
+  editIndex = i;
+  const e = entries[i];
+  $('fSite').value = e.site; $('fLogin').value = e.login; $('fPass').value = e.password;
+  $('fNote').value = e.note || ''; $('noteFold').open = false; updateNoteTag();
+  $('formTitle').textContent = '編集：' + e.site;
+  $('saveEntryBtn').textContent = '更新';
+  $('cancelEditBtn').classList.remove('hidden');
+  msg('formMsg', '');
+  renderList();
+  $('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function resetForm() {
+  editIndex = -1;
+  $('fSite').value = ''; $('fLogin').value = ''; $('fPass').value = '';
+  $('fNote').value = ''; $('noteFold').open = false; updateNoteTag();
+  $('formTitle').textContent = '追加';
+  $('saveEntryBtn').textContent = '追加';
+  $('cancelEditBtn').classList.add('hidden');
+}
+$('cancelEditBtn').onclick = () => { resetForm(); msg('formMsg', ''); renderList(); };
+$('saveEntryBtn').onclick = () => {
+  const e = { site: $('fSite').value.trim(), login: $('fLogin').value.trim(), password: $('fPass').value, note: $('fNote').value.trim() };
+  if (!e.site) { msg('formMsg', 'サイト名を入れてください', 'err'); $('fSite').focus(); return; }
+  const was = editIndex >= 0;
+  if (was) entries[editIndex] = e; else entries.push(e);
+  msg('formMsg', '「' + e.site + '」を' + (was ? '更新' : '追加') + 'しました（下の「保存」で反映）', 'ok');
+  setDirty(true); resetForm(); renderList();
+};
+
+// 備考が入っているかを見出しに表示（閉じていても分かるように）
+function updateNoteTag() { $('noteTag').classList.toggle('hidden', !$('fNote').value.trim()); }
+$('fNote').addEventListener('input', updateNoteTag);
+
+// Enterキーで追加・更新（備考欄では改行）
+for (const id of ['fSite', 'fLogin', 'fPass']) {
+  $(id).addEventListener('keydown', ev => { if (ev.key === 'Enter' && !ev.isComposing) $('saveEntryBtn').click(); });
+}
+
+// ---------- 自動生成 ----------
+const AMBIGUOUS = '0O1lI|`\'"';
+// 0〜n-1 の一様な乱数（偏りが出ないよう範囲外は捨てて引き直す）
+function randInt(n) {
+  const max = Math.floor(0x100000000 / n) * n;
+  const buf = new Uint32Array(1);
+  do crypto.getRandomValues(buf); while (buf[0] >= max);
+  return buf[0] % n;
+}
+function generatePassword() {
+  const len = +$('gLen').value;
+  const noAmb = $('gNoAmb').checked;
+  const strip = str => noAmb ? [...str].filter(c => !AMBIGUOUS.includes(c)).join('') : str;
+  const groups = [
+    [$('gUpper').checked, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'],
+    [$('gLower').checked, 'abcdefghijklmnopqrstuvwxyz'],
+    [$('gDigit').checked, '0123456789'],
+    [$('gSym').checked,   '!#$%&*+-=?@^_~'],
+  ].filter(g => g[0]).map(g => strip(g[1]));
+  if (groups.length === 0) return null;
+  const all = groups.join('');
+  // 選んだ種類を最低1文字ずつ入れ、残りは全体から選んでシャッフル
+  const chars = groups.map(g => g[randInt(g.length)]);
+  while (chars.length < len) chars.push(all[randInt(all.length)]);
+  for (let i = chars.length - 1; i > 0; i--) { const j = randInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join('');
+}
+$('genBtn').onclick = () => {
+  const pw = generatePassword();
+  if (!pw) { $('genFold').open = true; msg('formMsg', '文字の種類を1つ以上選んでください', 'err'); return; }
+  $('fPass').value = pw;
+  msg('formMsg', '');
+};
+$('gLen').oninput = () => { $('gLenV').textContent = $('gLen').value; };
+
+// ---------- 保存 ----------
+// PINを確認して暗号化。書き出したものが復号できるかも確かめる
+async function buildFile() {
+  const p = $('sPin').value, p2 = $('sPin2').value;
+  if (!validPin(p)) throw new Error('PINは4〜6桁の数字にしてください');
+  if (p !== p2) throw new Error('PINが一致しません');
+  const obj = await encryptData(p);
+  await decryptData(obj, p);
+  return JSON.stringify(obj);
+}
+
+$('pushBtn').onclick = async () => {
+  if (!ghReady()) {
+    $('ghFold').open = true;
+    $('ghFold').scrollIntoView({ behavior: 'smooth' });
+    msg('exportMsg', '先に「GitHub連携の設定」でトークンを入れてください', 'err');
+    return;
+  }
+  $('pushBtn').disabled = true;
+  try {
+    msg('exportMsg', '暗号化しています…');
+    const text = await buildFile();
+    msg('exportMsg', 'GitHubに保存しています…');
+    const cur = await ghGetFile();
+    // 別の鍵で作られた data.json を上書きしそうなら確認
+    if (cur) {
+      let sameKey = true;
+      try { await decryptData(JSON.parse(cur.text), $('sPin').value); } catch (e) { sameKey = false; }
+      if (!sameKey && !confirm('GitHub上の data.json は別の鍵かPINで作られています。上書きすると今の友達用URL・PINでは開けなくなります。上書きしますか？')) {
+        msg('exportMsg', '保存をやめました', 'err');
+        return;
+      }
+    }
+    await ghPutFile(text, cur && cur.sha);
+    setDirty(false);
+    msg('exportMsg', 'GitHubに保存しました（友達のページへの反映は1〜数分後）', 'ok');
+  } catch (e) {
+    msg('exportMsg', '保存できませんでした：' + e.message, 'err');
+  } finally {
+    $('pushBtn').disabled = false;
+  }
+};
+
+$('exportBtn').onclick = async () => {
+  try {
+    msg('exportMsg', '暗号化しています…');
+    const text = await buildFile();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = 'data.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    msg('exportMsg', 'data.json をダウンロードしました（GitHubにはまだ反映されていません）', 'ok');
+  } catch (e) {
+    msg('exportMsg', e.message, 'err');
+  }
+};
+
+$('copyUrlBtn').onclick = async () => {
+  try { await navigator.clipboard.writeText(friendUrl()); $('copyUrlBtn').textContent = 'コピーしました'; }
+  catch (e) { $('copyUrlBtn').textContent = 'コピーできませんでした'; }
+  setTimeout(() => $('copyUrlBtn').textContent = 'URLをコピー', 1500);
+};
+
+// ---------- GitHub設定の操作 ----------
+for (const id of ['ghOwner', 'ghRepo', 'ghBranch', 'ghPath', 'ghToken']) $(id).addEventListener('change', saveGhConf);
+$('ghRemember').addEventListener('change', saveGhConf);
+$('ghForgetBtn').onclick = () => {
+  try { localStorage.removeItem(STORE); } catch (e) { /* なにもしない */ }
+  $('ghToken').value = ''; $('ghRemember').checked = false; updateGhTag();
+  msg('ghMsg', 'この端末から消しました', 'ok');
+};
+$('ghTestBtn').onclick = async () => {
+  saveGhConf();
+  if (!ghReady()) { msg('ghMsg', 'ユーザー名・リポジトリ名・トークンを入れてください', 'err'); return; }
+  msg('ghMsg', '確認しています…');
+  try {
+    const branch = await resolveBranch();
+    const cur = await ghGetFile();
+    msg('ghMsg', '接続できました（ブランチ：' + branch + '、' + (cur ? ghConf().path + ' あり' : ghConf().path + ' はまだありません') + '）', 'ok');
+  } catch (e) {
+    msg('ghMsg', e.message, 'err');
+  }
+};
+
+// 未保存のまま閉じようとしたら警告
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---------- 起動 ----------
+(function init() {
+  loadGhConf();
+  // ページのURLに鍵が付いていれば、PINだけで開ける
+  const k = location.hash.length > 1 ? parseKey(location.hash) : null;
+  if (k) {
+    urlKey = k;
+    $('keyBox').classList.add('hidden');
+    $('keyKnown').classList.remove('hidden');
+    $('loadPin').focus();
+  }
+  if (!window.crypto || !crypto.subtle) msg('loadMsg', 'このブラウザでは使えません（https で開いてください）', 'err');
+})();
+</script>
+</body>
+</html>

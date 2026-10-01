@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 検索エンジンに載せない -->
+<meta name="robots" content="noindex, nofollow">
+<!-- 鍵入りURLを他サイトへ送らない -->
+<meta name="referrer" content="no-referrer">
+<title>Memo</title>
+<style>
+  :root {
+    --bg: #eef2f5;
+    --panel: #ffffff;
+    --ink: #1c2833;
+    --sub: #5a6b7a;
+    --accent: #1f5f8b;
+    --ok: #2e7d4f;
+    --err: #b3261e;
+    --line: #d3dce4;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px; }
+  .hidden { display: none !important; }
+  h1 { font-size: 1.4rem; margin: 8px 0 16px; }
+  .msg { min-height: 1.6em; text-align: center; font-weight: bold; }
+  .msg.err { color: var(--err); }
+
+  /* ===== PIN入力画面 ===== */
+  .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 20px 0 8px; }
+  .pin-dots span {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--accent); background: transparent;
+  }
+  .pin-dots span.on { background: var(--accent); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .pad button {
+    font-size: 1.8rem; padding: 16px 0; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  .pad button:active { background: #dde6ee; }
+  .pad .sub { font-size: 1.1rem; }
+  .pad .go { background: var(--accent); color: #fff; border-color: var(--accent); font-size: 1.2rem; }
+  .pad .go:disabled { opacity: .4; }
+
+  /* ===== 一覧画面 ===== */
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .bar input {
+    flex: 1; font-size: 1.1rem; padding: 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel);
+  }
+  .bar button {
+    font-size: 1rem; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  .item { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px 8px; margin-bottom: 12px; }
+  .site { font-size: 1.2rem; font-weight: bold; padding: 10px 0 4px; word-break: break-all; }
+  /* 1行まるごとタップでコピー */
+  .row {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 0; border: none; border-top: 1px solid var(--line);
+    background: none; color: inherit; font: inherit; text-align: left;
+  }
+  .row:active { background: #eef3f7; }
+  .row .txt { flex: 1; min-width: 0; }
+  .label { font-size: .8rem; color: var(--sub); }
+  .val { font-size: 1.1rem; word-break: break-all; }
+  .val.none { color: var(--sub); }
+  .chip {
+    flex: none; font-size: .85rem; padding: 6px 12px; border-radius: 999px;
+    background: var(--accent); color: #fff; white-space: nowrap;
+  }
+  .row.done .chip { background: var(--ok); }
+  /* 備考（いつもは閉じている） */
+  .note { border-top: 1px solid var(--line); }
+  .note summary {
+    list-style: none; padding: 10px 0; color: var(--sub); font-size: .9rem; cursor: pointer;
+  }
+  .note summary::-webkit-details-marker { display: none; }
+  .note summary::before { content: "▸ "; }
+  .note[open] summary::before { content: "▾ "; }
+  .note .body { white-space: pre-wrap; word-break: break-all; font-size: 1rem; padding: 0 0 10px; }
+  .empty, .updated { text-align: center; color: var(--sub); }
+  footer { text-align: center; color: var(--sub); font-size: .8rem; margin: 24px 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- エラー画面（URLに鍵がないとき） -->
+  <section id="badUrl" class="hidden">
+    <h1>開けません</h1>
+    <p>このページのアドレスが正しくありません。管理している人に連絡してください。</p>
+  </section>
+
+  <!-- PIN入力画面 -->
+  <section id="lock" class="hidden">
+    <h1>暗証番号を入れてください</h1>
+    <div class="pin-dots" id="dots"></div>
+    <div class="msg" id="pinMsg"></div>
+    <div class="pad" id="pad"></div>
+  </section>
+
+  <!-- 一覧画面 -->
+  <section id="list" class="hidden">
+    <div class="bar">
+      <input id="search" type="search" placeholder="さがす" autocomplete="off">
+      <button id="lockBtn" type="button">閉じる</button>
+    </div>
+    <div id="items"></div>
+    <p class="updated" id="updated"></p>
+  </section>
+
+  <footer>v0.3.0</footer>
+</div>
+
+<script>
+'use strict';
+
+const VERSION = '0.3.0';
+const PIN_MIN = 4;   // PINの最小桁数
+const PIN_MAX = 6;   // PINの最大桁数
+
+// ---------- 文字列 ⇔ バイト列 変換 ----------
+// base64url文字列をUint8Arrayへ
+function b64urlDecode(str) {
+  const b64 = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// ---------- 暗号処理 ----------
+// URL鍵(32バイト) + PIN を材料に PBKDF2 で AES-GCM 256bit 鍵を作る
+async function deriveKey(urlKey, pin, salt, iter) {
+  const pinBytes = new TextEncoder().encode(pin);
+  const material = new Uint8Array(urlKey.length + pinBytes.length);
+  material.set(urlKey);
+  material.set(pinBytes, urlKey.length);
+  const base = await crypto.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+  );
+}
+
+// data.json を復号して中身(オブジェクト)を返す。PIN違いなら例外
+async function decryptData(file, urlKey, pin) {
+  const key = await deriveKey(urlKey, pin, b64urlDecode(file.salt), file.iter);
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: b64urlDecode(file.iv) }, key, b64urlDecode(file.ct)
+  );
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+// ---------- 画面の切り替え ----------
+function show(id) {
+  for (const s of ['badUrl', 'lock', 'list']) {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  }
+}
+
+// ---------- 状態 ----------
+let urlKey = null;   // URLから取り出した鍵
+let pin = '';        // 入力中のPIN
+let entries = [];    // 復号した一覧（ロック時に消す）
+let busy = false;    // 復号処理中フラグ
+
+// ---------- PIN入力 ----------
+// PINの●表示を更新
+function renderDots() {
+  const dots = document.getElementById('dots');
+  dots.textContent = '';
+  for (let i = 0; i < PIN_MAX; i++) {
+    const s = document.createElement('span');
+    if (i < pin.length) s.className = 'on';
+    dots.appendChild(s);
+  }
+  document.getElementById('goBtn').disabled = pin.length < PIN_MIN || busy;
+}
+
+// テンキーを作る（1〜9、消す、0、開く）
+function buildPad() {
+  const pad = document.getElementById('pad');
+  const keys = ['1','2','3','4','5','6','7','8','9','del','0','go'];
+  for (const k of keys) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (k === 'del') {
+      b.textContent = '1つ消す'; b.className = 'sub';
+      b.onclick = () => { pin = pin.slice(0, -1); setPinMsg(''); renderDots(); };
+    } else if (k === 'go') {
+      b.textContent = '開く'; b.className = 'go'; b.id = 'goBtn';
+      b.onclick = unlock;
+    } else {
+      b.textContent = k;
+      b.onclick = () => {
+        if (pin.length < PIN_MAX) { pin += k; setPinMsg(''); renderDots(); }
+      };
+    }
+    pad.appendChild(b);
+  }
+}
+
+function setPinMsg(text, isErr) {
+  const m = document.getElementById('pinMsg');
+  m.textContent = text;
+  m.classList.toggle('err', !!isErr);
+}
+
+// 「開く」：data.jsonを取得して復号
+async function unlock() {
+  if (busy || pin.length < PIN_MIN) return;
+  busy = true; renderDots();
+  setPinMsg('確認しています…');
+  try {
+    // キャッシュを使わず最新を取りに行く
+    const res = await fetch('data.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('fetch');
+    const file = await res.json();
+    let data;
+    try {
+      data = await decryptData(file, urlKey, pin);
+    } catch (e) {
+      pin = ''; setPinMsg('暗証番号がちがいます', true);
+      return;
+    }
+    entries = data.entries || [];
+    entries.sort((a, b) => (a.site || '').localeCompare(b.site || '', 'ja'));
+    document.getElementById('updated').textContent =
+      data.updated ? '最終更新：' + new Date(data.updated).toLocaleDateString('ja-JP') : '';
+    pin = ''; setPinMsg('');
+    document.getElementById('search').value = '';
+    renderList();
+    show('list');
+  } catch (e) {
+    setPinMsg('読み込めませんでした。電波を確認してもう一度押してください', true);
+  } finally {
+    busy = false; renderDots();
+  }
+}
+
+// ---------- 一覧表示 ----------
+// コピー（失敗時は古い方法で再挑戦）
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  }
+}
+
+// 「ラベル・値」の1行を作る。行をタップするとコピー
+function makeRow(label, value) {
+  const row = document.createElement(value ? 'button' : 'div');
+  row.className = 'row';
+  const txt = document.createElement('div'); txt.className = 'txt';
+  const l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+  const v = document.createElement('div'); v.className = 'val'; v.textContent = value || '（なし）';
+  if (!value) v.classList.add('none');
+  txt.append(l, v);
+  row.appendChild(txt);
+  if (value) {
+    row.type = 'button';
+    const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = 'コピー';
+    row.appendChild(chip);
+    row.onclick = async () => {
+      const ok = await copyText(value);
+      chip.textContent = ok ? '✓ コピー済' : '失敗';
+      row.classList.toggle('done', ok);
+      setTimeout(() => { chip.textContent = 'コピー'; row.classList.remove('done'); }, 1500);
+    };
+  }
+  return row;
+}
+
+// 備考（閉じた状態で表示。中身がなければ出さない）
+function makeNote(text) {
+  const d = document.createElement('details'); d.className = 'note';
+  const s = document.createElement('summary'); s.textContent = '備考';
+  const body = document.createElement('div'); body.className = 'body'; body.textContent = text;
+  d.append(s, body);
+  return d;
+}
+
+// 旧データ（email）にも対応
+function loginOf(e) { return e.login != null ? e.login : (e.email || ''); }
+
+// 検索語で絞り込んで一覧を描画（innerHTMLは使わない）
+function renderList() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const box = document.getElementById('items');
+  box.textContent = '';
+  const hits = entries.filter(e => !q || ((e.site || '') + '\n' + loginOf(e)).toLowerCase().includes(q));
+  if (hits.length === 0) {
+    const p = document.createElement('p'); p.className = 'empty';
+    p.textContent = q ? '見つかりません。別のことばでさがしてください' : 'まだ登録がありません';
+    box.appendChild(p);
+    return;
+  }
+  for (const e of hits) {
+    const item = document.createElement('div'); item.className = 'item';
+    const site = document.createElement('div'); site.className = 'site'; site.textContent = e.site;
+    item.append(site, makeRow('ID', loginOf(e)), makeRow('PW', e.password));
+    if (e.note) item.appendChild(makeNote(e.note));
+    box.appendChild(item);
+  }
+}
+
+// 「閉じる」：中身を消してPIN画面へ戻る
+function lockNow() {
+  entries = [];
+  document.getElementById('items').textContent = '';
+  pin = ''; renderDots();
+  show('lock');
+}
+
+// ---------- 起動 ----------
+(function init() {
+  buildPad();
+  document.getElementById('search').addEventListener('input', renderList);
+  document.getElementById('lockBtn').onclick = lockNow;
+  // URLの#以降から鍵を取り出す（#はサーバーに送られない）
+  try {
+    const k = b64urlDecode(location.hash.slice(1));
+    if (k.length !== 32) throw new Error('len');
+    urlKey = k;
+  } catch (e) {
+    show('badUrl');
+    return;
+  }
+  if (!window.crypto || !crypto.subtle) { show('badUrl'); return; }
+  renderDots();
+  show('lock');
+})();
+</script>
+</body>
+</html>
